@@ -288,7 +288,7 @@ if __name__ == "__main__":
     p.add_argument('file', help="autolog.yaml file location. This argument is required.")
 
   for p in (parser_arrive, parser_leave):
-    p.add_argument('message', help="message to write to the log. This argument is required.")
+    p.add_argument('-m', '--message', help="message to write to the log. This argument is required.")
     p.add_argument('-t', '--time', help="time in 24-hour HH:MM format. Rounded to the nearest 15 minutes. Defaults to current time.")
     p.add_argument('-d', '--date', help="date in MM/DD/YY format. Defaults to today.")
     p.add_argument('-b', '--block', help="block number in the log. Defaults to latest block.")
