@@ -88,19 +88,20 @@ class SysHoursError(Exception):
 
 class Yamler:
   def __init__(self, filename):
-    pass
+    self.filename = filename
 
-  def load(self, file_name):
-    file = open(file_name)
-    self.data = yaml.load(file, Loader=Loader)
-    if not log: log = {}
+  def load(self):
+    file = open(self.filename)
+    data = yaml.load(file, Loader=Loader)
+    if not data: data = {}
     file.close()
+    return data
   
-  def write(file_name):
-    file = open(file_name, 'w')
-    output = yaml.dump(self.data, default_flow_style=False, Dumper=Dumper)
+  def write(self, data):
+    file = open(self.filename, 'w')
+    output = yaml.dump(data, default_flow_style=False, Dumper=Dumper)
     file.write(output)
-    file.close
+    file.close()
 
 ######################
 #### logger class ####
@@ -212,25 +213,25 @@ class Printer:
 #### functions for creating log entries from user input ####
 ############################################################
 
-def write_entry(type, args):
+def write_entry(type, **kwargs):
+  f = kwargs.get('file')
+  if not f: raise SysHoursError('Must supply filename')
+  yamler = Yamler(f)
+  log = yamler.load()
+  sl = Log(log)
+  getattr(sl, type)(**kwargs)
+  yamler.write(sl.log)
 
-  # load the log
-  global log
-  f = args.get('file')
-  loadLog(f)
-
-
-  # write the log entry
-  writeLog(f)
-
+def arrive(**kwargs):
+  write_entry('arrive', **kwargs)
   return
 
-def arrive(args):
-  write_entry('arrive', args)
+def leave(**kwargs):
+  write_entry('leave', **kwargs)
   return
 
-def leave(args):
-  write_entry('leave', args)
+def update(**kwargs):
+  write_entry('update', **kwargs)
   return
 
 def print_log(args):
