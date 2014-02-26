@@ -39,8 +39,11 @@ def get_now():
 def get_today():
   return datetime.datetime.today()
 
+def date_to_str(date):
+  return date.strftime("%m/%d/%y")
+
 def get_today_str():
-  return get_today().strftime("%m/%d/%y")
+  return date_to_str(get_today())
 
 def seconds_to_str(secs):
   hours, minutes = divmod(int(secs) / 60, 60)
@@ -208,11 +211,6 @@ date    hours   tasks
 ----    -----   -----
 """
   
-  blockstr_template = """\
-  {taskstr}{subtotal}
-  
-  """
-  
   taskstr_template = "{datestr:<8}{hoursstr:<8}{tasksstr:<8}"
   
   tasksstr_width=55
@@ -229,7 +227,6 @@ date    hours   tasks
     print Printer.header_template
 
   def printFooter(self):
-    print ''
     print "total: {hrs}".format(hrs=seconds_to_str(self.totalSeconds))
     if self.error:
       print ''
@@ -265,7 +262,7 @@ date    hours   tasks
     for datestr, dayReport in weekReport.iteritems():
       self.printDayReport(datestr, dayReport)
     self.totalSeconds += self.subtotalSeconds
-    print "subtotal: {hrs}".format(hrs=seconds_to_str(self.subtotalSeconds))
+    print "subtotal: {hrs}\n\n".format(hrs=seconds_to_str(self.subtotalSeconds))
 
   def printReport(self):
     self.printHeader()
@@ -273,59 +270,9 @@ date    hours   tasks
       self.printWeekReport(wr)
     self.printFooter()
 
-#########################################
-#### functions for formatting output ####
-#########################################
-
-# def printLog(file_name):
-#   # first thing's first. let's get a list of the blocks of dates we're printing
-#   # blocklist = [["11/11/13","11/12/13","11/13/13","11/14/13","11/15/13"],["11/18/13","11/19/13","11/20/13","11/21/13","11/22/13"]]
-#   blocklist = [["02/03/14","02/04/14","02/05/14","02/06/14","02/07/14"],["02/10/14","02/11/14","02/12/14","02/13/14","02/14/14"]]
-# 
-#   # open the log file
-#   loadLog(file_name)
-# 
-#   # before we do anything, write cur_log if there is one still hanging about
-#   writeCurLog()
-# 
-#   # okay, we're ready to start printing the log...
-#   error = False
-#   total_total_seconds = 0
-#   raw_blocks_str = ''
-# 
-#   for block in blocklist:
-#     subtotal_total_seconds = 0
-#     blockstr = ''
-# 
-#     for datestr in block:
-#       # sanity check
-#       log_list = log['entries'].get(datestr)
-#       if not log_list:
-#         log_list = []
-#       entrystr = ''
-#       # log_list = log['entries'][datestr]
-# 
-# 
-#       # ok, now let's get out of that horrendous for loop... two levels left to go
-#       blockstr += entrystr
-# 
-#     # one level left to go
-#     total_total_seconds += subtotal_total_seconds
-#     printable_blockstr = blockstr_template.format(taskstr=blockstr, subtotal=subtotal_str)
-#     raw_blocks_str += printable_blockstr
-# 
-#   # ...and we're out! let's format the final output
-#   output_str = outputstr_template.format(block=raw_blocks_str, total=total_str)
-# 
-#   # finally!!
-#   print output_str
-# 
-#   if error:
-#     print "{msg}".format(msg=error_message)
-
-############################################################
-#### functions for creating log entries from user input ####
-############################################################
+########################
+#### main functions ####
+########################
 
 def write_entry(type, **kwargs):
   f = kwargs.get('file')
@@ -338,31 +285,41 @@ def write_entry(type, **kwargs):
 
 def arrive(**kwargs):
   write_entry('arrive', **kwargs)
-  return
 
 def leave(**kwargs):
   write_entry('leave', **kwargs)
-  return
 
 def update(**kwargs):
   write_entry('update', **kwargs)
-  return
 
-def print_log(args):
-  print 'print function'
-  return
+def getDefaultDateList():
+  cur_date = get_today()
+  return [[date_to_str(cur_date - datetime.timedelta(days=j*7 + i)) for i in range(7)][::-1] for j in range(2)][::-1]
 
-def view_log(args):
-  print 'view function'
-  
-  # parse dates
+def print_log(**kwargs):
+  # get list of dates
+  dl = getDefaultDateList()
 
-  # iterate over dates
-  return
+  # get log
+  f = kwargs.get('file')
+  if not f: raise SysHoursError('Must supply filename')
+  yamler = Yamler(f)
+  log = yamler.load()
 
-def help():
-  print 'help function'
-  return
+  # make report for to print
+  report = []
+  for w in dl:
+    r = {}
+    for d in w:
+      e = log.get(d)
+      if e:
+        r[d] = e
+    if r:
+      report.append(r)
+
+  # print it
+  p = Printer(report)
+  p.printReport()
 
 ##############
 #### MAIN ####
@@ -378,25 +335,28 @@ if __name__ == "__main__":
 
   parser_arrive = subparsers.add_parser('arrive')
   parser_leave = subparsers.add_parser('leave')
+  parser_update = subparsers.add_parser('update')
   parser_print = subparsers.add_parser('print')
-  parser_view = subparsers.add_parser('view')
 
   parser_arrive.set_defaults(func=arrive)
   parser_leave.set_defaults(func=leave)
+  parser_update.set_defaults(func=update)
   parser_print.set_defaults(func=print_log)
-  parser_view.set_defaults(func=view_log)
 
-  for p in (parser_arrive, parser_leave, parser_print, parser_view):
+  for p in (parser_arrive, parser_update, parser_leave, parser_print):
     p.add_argument('file', help="autolog.yaml file location. This argument is required.")
 
+  parser_update.add_argument('message', help="message to write to the log. This argument is required.")
+
   for p in (parser_arrive, parser_leave):
-    p.add_argument('-m', '--message', help="message to write to the log. This argument is required.")
+    p.add_argument('-m', '--message', help="message to write to the log.")
     p.add_argument('-t', '--time', help="time in 24-hour HH:MM format. Rounded to the nearest 15 minutes. Defaults to current time.")
+
+  for p in (parser_arrive, parser_update, parser_leave):
     p.add_argument('-d', '--date', help="date in MM/DD/YY format. Defaults to today.")
     p.add_argument('-b', '--block', help="block number in the log. Defaults to latest block.")
 
-  for p in (parser_print, parser_view):
-    p.add_argument('-d', '--date', help="list of dates in MM/DD/YY format. If not given, defaults to last 14 days. Dates must be separated with a comma. Ranges may be specified with a dash. E.g.: 12/01/90,12/04/90-01/04/91")
+  parser_print.add_argument('-d', '--date', help="list of dates in MM/DD/YY format. If not given, defaults to last 14 days. Dates must be separated with a comma. Ranges may be specified with a dash. E.g.: 12/01/90,12/04/90-01/04/91 **NOTE**: this is not yet implemented. Only default dates can be used currently.")
 
   args = parser.parse_args()
   args.func(vars(args))
