@@ -16,31 +16,6 @@ except ImportError:
 
 prog_description = "Log your hours, you lazy bum."
 
-######################################
-#### FORMATTING FOR E-MAIL OUTPUT ####
-######################################
-
-error_message = "Warning: some log entries incomplete; total hours may be inaccurate"
-
-outputstr_template = """
-This e-mail has been automagically generated from a log file. If there
-are any errors or problems with this output, please feel free to harrass
-the sender who forgot to double-check their log file.
-
-date    hours   tasks
-----    -----   -----
-{block}{total}
-"""
-
-blockstr_template = """\
-{taskstr}{subtotal}
-
-"""
-
-taskstr_template = "{datestr:<8}{hoursstr:<8}{tasksstr:<8}"
-
-tasksstr_width=55
-
 ##########################
 #### helper functions ####
 ##########################
@@ -70,6 +45,21 @@ def get_today_str():
 def seconds_to_str(secs):
   hours, minutes = divmod(int(secs) / 60, 60)
   return '{hr}:{min:02}'.format(hr=hours, min=minutes)
+
+def get_total_seconds(arrivestr, leavestr):
+  # sanity checks
+  if not arrivestr or not leavestr:
+    return None
+
+  # first convert string representations of time to time objects
+  arrivetime, leavetime = str_to_time(arrivestr), str_to_time(leavestr)
+
+  # get a timedelta object (requires a date object and a time object)
+  today = get_today()
+  td = datetime.datetime.combine(today, leavetime) - datetime.datetime.combine(today, arrivetime)
+
+  # return the total seconds  
+  return td.total_seconds()
 
 ###################################
 #### class for throwing errors ####
@@ -185,29 +175,153 @@ class Log:
 #################################
 
 class Printer:
-  def __init__(self, entries):
-    pass
+  '''
+  Printer expects a log in the following format:
 
-  def setDates(self, days):
-    pass
+  [
+    {
+      'MM/DD/YYYY':
+        [
+          {
+            'arrive': 'HH:MM'
+            'description': 'description'
+            'leave': 'HH:MM'
+          },
+          ...
+        ],
+      ...
+    }
+    ...
+  ]
+  '''
 
-  def calculateTotalSeconds(self):
-    pass
+  #### FORMATTING FOR PRINTING OUTPUT ####
+  
+  error_message = "Warning: some log entries incomplete; total hours may be inaccurate"
+  
+  header_template = """
+This e-mail has been automagically generated from a log file. If there
+are any errors or problems with this output, please feel free to harrass
+the sender who forgot to double-check their log file.
+
+date    hours   tasks
+----    -----   -----
+"""
+  
+  blockstr_template = """\
+  {taskstr}{subtotal}
+  
+  """
+  
+  taskstr_template = "{datestr:<8}{hoursstr:<8}{tasksstr:<8}"
+  
+  tasksstr_width=55
+
+  #### CLASS METHODS ####
+
+  def __init__(self, report):
+    self.totalSeconds = 0
+    self.subtotalSeconds = 0
+    self.report = report
+    self.error = False
 
   def printHeader(self):
-    pass
+    print Printer.header_template
 
   def printFooter(self):
-    pass
+    print ''
+    print "total: {hrs}".format(hrs=seconds_to_str(self.totalSeconds))
+    if self.error:
+      print ''
+      print Printer.error_message
 
-  def printDayReport(self):
-    pass
+  def printDayReport(self, datestr, day_report):
+    for entry in day_report:
 
-  def printWeekReport(self):
-    pass
+      # get description
+      desc = entry.get('description')
+      if not desc: desc = 'n/a' # hack to get textwrap to behave
+
+      # get date if necessary
+      printable_datestr = ''
+      if day_report.index(entry) == 0:
+        printable_datestr = datestr[:5] # so we don't get the year as well
+
+      # get the total seconds
+      secs = get_total_seconds(entry['arrive'], entry['leave'])
+      printable_hoursstr = 'n/a'
+      if secs is None:
+        self.error = True
+      else:
+        printable_hoursstr = seconds_to_str(secs)
+        self.subtotalSeconds += secs
+
+      # print formatted string
+      taskstr_list = textwrap.wrap(desc, width=Printer.tasksstr_width)
+      print "\n".join([Printer.taskstr_template.format(datestr=printable_datestr, hoursstr=printable_hoursstr, tasksstr=ts) if taskstr_list.index(ts) == 0 else Printer.taskstr_template.format(datestr='', hoursstr='', tasksstr=ts) for ts in taskstr_list]) + "\n"
+
+  def printWeekReport(self, weekReport):
+    self.subtotalSeconds = 0
+    for datestr, dayReport in weekReport.iteritems():
+      self.printDayReport(datestr, dayReport)
+    self.totalSeconds += self.subtotalSeconds
+    print "subtotal: {hrs}".format(hrs=seconds_to_str(self.subtotalSeconds))
 
   def printReport(self):
-    pass
+    self.printHeader()
+    for wr in self.report:
+      self.printWeekReport(wr)
+    self.printFooter()
+
+#########################################
+#### functions for formatting output ####
+#########################################
+
+# def printLog(file_name):
+#   # first thing's first. let's get a list of the blocks of dates we're printing
+#   # blocklist = [["11/11/13","11/12/13","11/13/13","11/14/13","11/15/13"],["11/18/13","11/19/13","11/20/13","11/21/13","11/22/13"]]
+#   blocklist = [["02/03/14","02/04/14","02/05/14","02/06/14","02/07/14"],["02/10/14","02/11/14","02/12/14","02/13/14","02/14/14"]]
+# 
+#   # open the log file
+#   loadLog(file_name)
+# 
+#   # before we do anything, write cur_log if there is one still hanging about
+#   writeCurLog()
+# 
+#   # okay, we're ready to start printing the log...
+#   error = False
+#   total_total_seconds = 0
+#   raw_blocks_str = ''
+# 
+#   for block in blocklist:
+#     subtotal_total_seconds = 0
+#     blockstr = ''
+# 
+#     for datestr in block:
+#       # sanity check
+#       log_list = log['entries'].get(datestr)
+#       if not log_list:
+#         log_list = []
+#       entrystr = ''
+#       # log_list = log['entries'][datestr]
+# 
+# 
+#       # ok, now let's get out of that horrendous for loop... two levels left to go
+#       blockstr += entrystr
+# 
+#     # one level left to go
+#     total_total_seconds += subtotal_total_seconds
+#     printable_blockstr = blockstr_template.format(taskstr=blockstr, subtotal=subtotal_str)
+#     raw_blocks_str += printable_blockstr
+# 
+#   # ...and we're out! let's format the final output
+#   output_str = outputstr_template.format(block=raw_blocks_str, total=total_str)
+# 
+#   # finally!!
+#   print output_str
+# 
+#   if error:
+#     print "{msg}".format(msg=error_message)
 
 ############################################################
 #### functions for creating log entries from user input ####
@@ -249,98 +363,6 @@ def view_log(args):
 def help():
   print 'help function'
   return
-
-#########################################
-#### functions for formatting output ####
-#########################################
-
-# def getTotalSeconds(arrivestr, leavestr):
-#   # sanity checks
-#   if not arrivestr or not leavestr:
-#     return None
-# 
-#   # first convert string representations of time to time objects
-#   arrivetime, leavetime = str_to_time(arrivestr), str_to_time(leavestr)
-# 
-#   # get a timedelta object (requires a date object and a time object)
-#   today = date.today()
-#   td = datetime.combine(today, leavetime) - datetime.combine(today, arrivetime)
-# 
-#   # return the total seconds  
-#   return td.total_seconds()
-# 
-# def printLog(file_name):
-#   # first thing's first. let's get a list of the blocks of dates we're printing
-#   # blocklist = [["11/11/13","11/12/13","11/13/13","11/14/13","11/15/13"],["11/18/13","11/19/13","11/20/13","11/21/13","11/22/13"]]
-#   blocklist = [["02/03/14","02/04/14","02/05/14","02/06/14","02/07/14"],["02/10/14","02/11/14","02/12/14","02/13/14","02/14/14"]]
-# 
-#   # open the log file
-#   loadLog(file_name)
-# 
-#   # before we do anything, write cur_log if there is one still hanging about
-#   writeCurLog()
-# 
-#   # okay, we're ready to start printing the log...
-#   error = False
-#   total_total_seconds = 0
-#   raw_blocks_str = ''
-# 
-#   for block in blocklist:
-#     subtotal_total_seconds = 0
-#     blockstr = ''
-# 
-#     for datestr in block:
-#       # sanity check
-#       log_list = log['entries'].get(datestr)
-#       if not log_list:
-#         log_list = []
-#       entrystr = ''
-#       # log_list = log['entries'][datestr]
-# 
-#       for entry in log_list:
-#         # don't print the date for subsequent entries in a single day
-#         if log_list.index(entry) == 0:
-#           printable_datestr = datestr[:5] # (so we don't get the year as well)
-#         else:
-#           printable_datestr = ''
-# 
-#         # get the total seconds of the entry
-#         secs = getTotalSeconds(entry['arrive'], entry['leave'])
-# 
-#         # error catching
-#         if secs is None:
-#           secs = 0
-#           error = True
-# 
-#         subtotal_total_seconds += secs
-# 
-#         printable_hoursstr = seconds_to_str(secs)
-# 
-#         # format the "tasks" bit
-#         # printable_tasksstr = "\n                ".join(textwrap.wrap(entry['description'], width=55))
-#         taskstr_list = textwrap.wrap(entry['description'], width=tasksstr_width)
-#         str = "\n".join([taskstr_template.format(datestr=printable_datestr, hoursstr=printable_hoursstr, tasksstr=ts) if taskstr_list.index(ts) == 0 else taskstr_template.format(datestr='', hoursstr='', tasksstr=ts) for ts in taskstr_list]) + "\n\n" # did I just abuse list comprehension? 
-# 
-#         entrystr += str
-# 
-#       # ok, now let's get out of that horrendous for loop... two levels left to go
-#       blockstr += entrystr
-# 
-#     # one level left to go
-#     total_total_seconds += subtotal_total_seconds
-#     subtotal_str = "subtotal: {hrs}".format(hrs=seconds_to_str(subtotal_total_seconds))
-#     printable_blockstr = blockstr_template.format(taskstr=blockstr, subtotal=subtotal_str)
-#     raw_blocks_str += printable_blockstr
-# 
-#   # ...and we're out! let's format the final output
-#   total_str = "total: {hrs}".format(hrs=seconds_to_str(total_total_seconds))
-#   output_str = outputstr_template.format(block=raw_blocks_str, total=total_str)
-# 
-#   # finally!!
-#   print output_str
-# 
-#   if error:
-#     print "{msg}".format(msg=error_message)
 
 ##############
 #### MAIN ####
