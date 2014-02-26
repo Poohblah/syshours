@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import os
+import copy
 import datetime
 import textwrap
 import yaml
@@ -8,6 +9,12 @@ try:
     from yaml import CLoader as Loader, CDumper as Dumper
 except ImportError:
     from yaml import Loader, Dumper
+
+##########################
+#### global variables ####
+##########################
+
+prog_description = "Log your hours, you lazy bum."
 
 ######################################
 #### FORMATTING FOR E-MAIL OUTPUT ####
@@ -35,41 +42,8 @@ taskstr_template = "{datestr:<8}{hoursstr:<8}{tasksstr:<8}"
 tasksstr_width=55
 
 ##########################
-#### global variables ####
-##########################
-
-prog_description = "Log your hours, you lazy bum."
-
-log = {} # don't forget to initialize an empty log
-
-####################################################
-#### functions for writing & reading yaml files ####
-####################################################
-
-def loadLog(file_name):
-  global log
-  file = open(file_name)
-  log = yaml.load(file, Loader=Loader)
-  if not log: log = {}
-  file.close()
-
-def writeLog(file_name):
-  global log
-  file = open(file_name, 'w')
-  output = yaml.dump(log, default_flow_style=False, Dumper=Dumper)
-  file.write(output)
-  file.close
-
-##########################
 #### helper functions ####
 ##########################
-
-def make_log_entry():
-  return {
-    'arrive'      : '',
-    'leave'       : '',
-    'description' : ''
-    }
 
 def str_to_time(str):
   return datetime.datetime.strptime(str, '%H:%M').time()
@@ -97,6 +71,143 @@ def seconds_to_str(secs):
   hours, minutes = divmod(int(secs) / 60, 60)
   return '{hr}:{min:02}'.format(hr=hours, min=minutes)
 
+###################################
+#### class for throwing errors ####
+###################################
+
+class SysHoursError(Exception):
+  def __init__(self, value):
+    self.value = value
+
+  def __str__(self):
+    return repr(self.value)
+
+################################################
+#### class for writing & reading yaml files ####
+################################################
+
+class Yamler:
+  def __init__(self, filename):
+    pass
+
+  def load(self, file_name):
+    file = open(file_name)
+    self.data = yaml.load(file, Loader=Loader)
+    if not log: log = {}
+    file.close()
+  
+  def write(file_name):
+    file = open(file_name, 'w')
+    output = yaml.dump(self.data, default_flow_style=False, Dumper=Dumper)
+    file.write(output)
+    file.close
+
+######################
+#### logger class ####
+######################
+
+class Log:
+  def __init__(self, log={}):
+    self.setLog(log)
+    self.blockSkeleton = {
+      'arrive'      : '',
+      'leave'       : '',
+      'description' : ''
+      }
+
+  def setLog(self, log):
+    self.log = log
+
+  def createBlock(self, dateBlocks, block=None):
+    if block is None:
+      block = copy.deepcopy(self.blockSkeleton)
+    dateBlocks.append(block)
+
+  def getBlocks(self, datestr=get_today_str()):
+    result = self.log.get(datestr)
+    if not result:
+      result = []
+      self.createBlock(result)
+      self.log[datestr] = result
+    return result
+
+  def writeDescription(self, block, desc):
+    m = block.get('description')
+    if m:
+      m += "; "
+    else:
+      m = ''
+    m += desc
+    block['description'] = m
+
+  def writeEntry(self, method, **kwargs):
+
+    # throw error if invalid log type
+    if not method in ['arrive', 'leave', 'update']:
+      raise SysHoursError('invalid log method: %s' % method)
+
+    # set the date to today if not given
+    d = kwargs.get('date', get_today_str())
+
+    # create a new block or use the most recent one
+    blocks = self.getBlocks()
+    e = blocks[-1]
+
+    # set the time if arrive or leave
+    if method in ['arrive', 'leave']:
+
+      # create a new block if necessary
+      if e[method]:
+        self.createBlock(blocks)
+        e = blocks[-1]
+
+      # set the time to now if not given
+      t = kwargs.get('time', time_to_str(round_to_15_min(get_now())))
+      e[method] = t
+
+    # append to the end of the description or create a new one
+    m = kwargs.get('message')
+    if m:
+      self.writeDescription(e, m)
+
+  def arrive(self, **kwargs):
+    self.writeEntry('arrive', **kwargs)
+
+  def leave(self, **kwargs):
+    self.writeEntry('leave', **kwargs)
+
+  def update(self, message, **kwargs):
+    self.writeEntry('update', message=message, **kwargs)
+
+#################################
+#### class for printing logs ####
+#################################
+
+class Printer:
+  def __init__(self, entries):
+    pass
+
+  def setDates(self, days):
+    pass
+
+  def calculateTotalSeconds(self):
+    pass
+
+  def printHeader(self):
+    pass
+
+  def printFooter(self):
+    pass
+
+  def printDayReport(self):
+    pass
+
+  def printWeekReport(self):
+    pass
+
+  def printReport(self):
+    pass
+
 ############################################################
 #### functions for creating log entries from user input ####
 ############################################################
@@ -108,38 +219,6 @@ def write_entry(type, args):
   f = args.get('file')
   loadLog(f)
 
-  # set the date to today if not given
-  d = args.get('date')
-  if not d:
-    d = get_today_str()
-
-  # create a new block or use the most recent one
-  blocks = log.get(d)
-  if not blocks:
-    blocks = [ make_log_entry() ]
-    log[d] = blocks
-  e = blocks[-1]
-  if e[type]:
-    blocks.append(make_log_entry())
-    e = blocks[-1]
-
-  # set the time to now if not given
-  t = args.get('time')
-  if not t:
-    t = time_to_str(round_to_15_min(get_now()))
-
-  # append to the end of the description or create a new one
-  m = e.get('description')
-  if m:
-    m += "; "
-  else:
-    m = ''
-  m += args.get('message')
-
-  # create the log entry
-  e['description'] = m
-  e[type] = t
-  log[d][-1] = e
 
   # write the log entry
   writeLog(f)
