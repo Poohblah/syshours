@@ -10,6 +10,8 @@ try:
 except ImportError:
     from yaml import Loader, Dumper
 
+# TODO: implement choosing block support; implement choosing dates support
+
 ##########################
 #### global variables ####
 ##########################
