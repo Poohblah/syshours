@@ -10,7 +10,7 @@ try:
 except ImportError:
     from yaml import Loader, Dumper
 
-# TODO: implement choosing block support; implement choosing dates support
+# TODO: implement choosing block support; implement choosing dates support; docstrings
 
 ##########################
 #### global variables ####
@@ -143,7 +143,8 @@ class Log:
       raise SysHoursError('invalid log method: %s' % method)
 
     # set the date to today if not given
-    d = kwargs.get('date', get_today_str())
+    d = kwargs.get('date')
+    if not d: d = get_today_str()
 
     # create a new block or use the most recent one
     blocks = self.getBlocks()
@@ -158,7 +159,8 @@ class Log:
         e = blocks[-1]
 
       # set the time to now if not given
-      t = kwargs.get('time', time_to_str(round_to_15_min(get_now())))
+      t = kwargs.get('time')
+      if not t: t = time_to_str(round_to_15_min(get_now()))
       e[method] = t
 
     # append to the end of the description or create a new one
@@ -277,6 +279,7 @@ date    hours   tasks
 ########################
 
 def write_entry(type, **kwargs):
+  print kwargs
   f = kwargs.get('file')
   if not f: raise SysHoursError('Must supply filename')
   yamler = Yamler(f)
@@ -361,6 +364,6 @@ if __name__ == "__main__":
   parser_print.add_argument('-d', '--date', help="list of dates in MM/DD/YY format. If not given, defaults to last 14 days. Dates must be separated with a comma. Ranges may be specified with a dash. E.g.: 12/01/90,12/04/90-01/04/91 **NOTE**: this is not yet implemented. Only default dates can be used currently.")
 
   args = parser.parse_args()
-  args.func(vars(args))
+  args.func(**vars(args))
 
   exit(0)
