@@ -10,7 +10,7 @@ try:
 except ImportError:
     from yaml import Loader, Dumper
 
-# TODO: implement choosing block support; implement choosing dates support; docstrings
+# TODO: implement choosing block support; implement choosing dates support; docstrings; fix odd ordering in output
 
 ##########################
 #### global variables ####
@@ -279,7 +279,6 @@ date    hours   tasks
 ########################
 
 def write_entry(type, **kwargs):
-  print kwargs
   f = kwargs.get('file')
   if not f: raise SysHoursError('Must supply filename')
   yamler = Yamler(f)
